@@ -50,7 +50,7 @@ def mdn_loss(pi, sigma, mu, y):
 def train_mdn(model, train_dl, epochs=200):
     model.train()
     min_total_loss = float('inf')
-    best_model_total_path = 'F:\\Geo\\Model\\mdn_model_chl_best_total.pth'
+    best_model_total_path = 'F:\\aphy-chla-predictions\\Model\\mdn_model_chl_best_total.pth'
 
     for epoch in range(epochs):
         total_loss = 0.0
@@ -70,7 +70,7 @@ def train_mdn(model, train_dl, epochs=200):
             min_total_loss = avg_total_loss
             torch.save(model.state_dict(), best_model_total_path)
 
-    torch.save(model.state_dict(), 'F:\\Geo\\Model\\mdn_model.pth')
+    torch.save(model.state_dict(), 'F:\\aphy-chla-predictions\\Model\\mdn_model.pth')
 
 def evaluate_mdn(model, test_dl):
     model.eval()
@@ -178,7 +178,7 @@ def calculate_metrics(predictions, actuals, threshold=0.8):
     rmsle = np.sqrt(np.mean((np.log10(filtered_predictions + 1) - np.log10(filtered_actuals + 1)) ** 2))
     mape = 100 * np.median(np.abs((filtered_predictions - filtered_actuals) / (filtered_actuals+1e-10)))
     bias = 10 ** (np.mean(np.log10(filtered_predictions) - np.log10(filtered_actuals+1e-10)))
-    mae = np.mean(np.abs(np.log10(filtered_predictions) - np.log10(filtered_actuals+1e-10)))
+    mae = 10**np.mean(np.abs(np.log10(filtered_predictions) - np.log10(filtered_actuals+1e-10)))
     
     return epsilon, beta, rmse, rmsle, mape, bias, mae
 
@@ -247,19 +247,19 @@ def inverse_transform_by_row(scalers, data):
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_real_dl, test_real_dl, scaler_Chl_real, input_dim, output_dim  = load_real_data('F:\\Geo\\Data\\Real\\Chl_RC_HICO.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO.csv')
-    test_real_Sep, scaler_Chl_real_Sep, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_HICO_Sep.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO_Sep.csv')
-    test_real_Oct, scaler_Chl_real_Oct, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_HICO_Oct.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO_Oct.csv')
+    train_real_dl, test_real_dl, scaler_Chl_real, input_dim, output_dim  = load_real_data('F:\\aphy-chla-predictions\\Data\\Real\\Chl_RC_EMIT.csv','F:\\aphy-chla-predictions\\Data\\Real\\Rrs_RC_EMIT.csv')
+    test_real_Sep, scaler_Chl_real_Sep, _, _  = load_real_test('F:\\aphy-chla-predictions\\Data\\Real\\Chl_RC_EMIT_Sep.csv','F:\\aphy-chla-predictions\\Data\\Real\\Rrs_RC_EMIT_Sep.csv')
+    test_real_Oct, scaler_Chl_real_Oct, _, _  = load_real_test('F:\\aphy-chla-predictions\\Data\\Real\\Chl_RC_EMIT_Oct.csv','F:\\aphy-chla-predictions\\Data\\Real\\Rrs_RC_EMIT_Oct.csv')
 
-    save_dir = "F:\\Geo\\plots\\MDN_chla_HICO"
+    save_dir = "F:\\aphy-chla-predictions\\plots\\MDN_chla_EMIT_2"
     os.makedirs(save_dir, exist_ok=True)
 
     model = MDN(input_dim, output_dim).to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=0.002)
+    opt = torch.optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-3)
 
     train_mdn(model, train_real_dl, epochs=200)
 
-    model.load_state_dict(torch.load('F:\\Geo\\Model\\mdn_model_chl_best_total.pth', map_location=device))
+    model.load_state_dict(torch.load('F:\\aphy-chla-predictions\\Model\\mdn_model_chl_best_total.pth', map_location=device))
 
     predictions, actuals = evaluate_mdn(model, test_real_dl)
     predictions_rescaled = scaler_Chl_real.inverse_transform(predictions)

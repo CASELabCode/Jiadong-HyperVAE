@@ -72,7 +72,7 @@ def train(model, train_dl, epochs=200):
 
     min_total_loss = float('inf')
 
-    best_model_total_path = 'F:\\Geo\\Model\\vae_trans_model_best_Chl.pth'
+    best_model_total_path = 'F:\\aphy-chla-predictions\\Model\\vae_trans_model_best_Chl.pth'
 
     for epoch in range(epochs):
         total_loss = 0.0
@@ -92,7 +92,7 @@ def train(model, train_dl, epochs=200):
             min_total_loss = avg_total_loss
             torch.save(model.state_dict(), best_model_total_path)
 
-    torch.save(model.state_dict(), 'F:\\Geo\\Model\\vae_model.pth')
+    torch.save(model.state_dict(), 'F:\\aphy-chla-predictions\\Model\\vae_model.pth')
 
 
 def evaluate(model, test_dl):
@@ -188,13 +188,13 @@ def calculate_metrics(predictions, actuals, threshold=0.8):
     log_ratios = np.log10(filtered_predictions / filtered_actuals)
     Y = np.median(np.abs(log_ratios))
     Z = np.median(log_ratios)
-    epsilon = 100 * (10**Y - 1)
-    beta = 100 * np.sign(Z) * (10**np.abs(Z) - 1)
+    epsilon = 50 * (10**Y - 1)
+    beta = 50 * np.sign(Z) * (10**np.abs(Z) - 1)
     
     # Calculate additional metrics
     rmse = np.sqrt(np.mean((filtered_predictions - filtered_actuals) ** 2))
     rmsle = np.sqrt(np.mean((np.log10(filtered_predictions + 1) - np.log10(filtered_actuals + 1)) ** 2))
-    mape = 100 * np.median(np.abs((filtered_predictions - filtered_actuals) / filtered_actuals))
+    mape = 50 * np.median(np.abs((filtered_predictions - filtered_actuals) / filtered_actuals))
     bias = 10 ** (np.mean(np.log10(filtered_predictions) - np.log10(filtered_actuals)))
     mae = 10** np.mean(np.abs(np.log10(filtered_predictions) - np.log10(filtered_actuals)))
     
@@ -202,12 +202,12 @@ def calculate_metrics(predictions, actuals, threshold=0.8):
 
 
 
-def plot_results(predictions_rescaled, actuals_rescaled, save_dir, threshold=5.0, mode='test'):
+def plot_results(predictions_rescaled, actuals_rescaled, save_dir, threshold=0.5, mode='test'):
 
     actuals = actuals_rescaled.flatten()
     predictions = predictions_rescaled.flatten()
 
-    mask = np.abs(predictions - actuals) / np.abs(actuals+1e-10) < threshold
+    mask = np.abs(predictions - actuals) / np.abs(actuals+1e-10) <1
     filtered_predictions = predictions[mask]
     filtered_actuals = actuals[mask]
 
@@ -263,20 +263,20 @@ def save_to_csv(data, file_path):
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_real_dl, test_real_dl, scaler_Chl_real, input_dim, output_dim  = load_real_data('F:\\Geo\\Data\\Real\\Chl_RC_EMIT.csv','F:\\Geo\\Data\\Real\\Rrs_RC_EMIT.csv')
-    test_real_Sep, scaler_Chl_real_Sep, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_EMIT_Sep.csv','F:\\Geo\\Data\\Real\\Rrs_RC_EMIT_Sep.csv')
-    test_real_Oct, scaler_Chl_real_Oct, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_EMIT_Oct.csv','F:\\Geo\\Data\\Real\\Rrs_RC_EMIT_Oct.csv')
+    train_real_dl, test_real_dl, scaler_Chl_real, input_dim, output_dim  = load_real_data('F:\\Geo\\Data\\Real\\Chl_RC_PACE.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO.csv')
+    test_real_Sep, scaler_Chl_real_Sep, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_HICO_Sep.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO_Sep.csv')
+    test_real_Oct, scaler_Chl_real_Oct, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_HICO_Oct.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO_Oct.csv')
 
-    save_dir = "F:\\Geo\\plots\\VAE_Chla_EMIT"
+    save_dir = "F:\\aphy-chla-predictions\\plots\\VAE_Chla_HICO_2"
     os.makedirs(save_dir, exist_ok=True)
 
     # 创建VAE模型及优化器
     model = VAE(input_dim, output_dim).to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=0.001)
+    opt = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-3)
 
     train(model, train_real_dl, epochs=400)
 
-    model.load_state_dict(torch.load('F:\\Geo\\Model\\vae_trans_model_best_Chl.pth', map_location=device))
+    model.load_state_dict(torch.load('F:\\aphy-chla-predictions\\Model\\vae_trans_model_best_Chl.pth', map_location=device))
 
     predictions, actuals = evaluate(model, test_real_dl)
     predictions_rescaled = scaler_Chl_real.inverse_transform(predictions)

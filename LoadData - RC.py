@@ -23,8 +23,8 @@ def read_columns(file, sheet_name, columns, skiprows=1):
     return df.iloc[2:, columns]
 
 # Read three xlsx files
-file2 = 'F:/Geo/Data/Real/Rrs_real_Sep.xlsx'
-file3 = 'F:/Geo/Data/Real/Chl a_real_Sep.xlsx'
+file2 = 'F:/Geo/Data/Real/Rrs.xlsx'
+file3 = 'F:/Geo/Data/Real/Chl a.xlsx'
 
 
 wv_HICO = [
@@ -91,7 +91,7 @@ df3_clean = df3[~nan_indices].reset_index(drop=True)
 
 
 # Find the indices of the top 20% largest values in df3_clean
-threshold = df3_clean.quantile(0.90)
+threshold = df3_clean.quantile(0.98)
 large_indices = df3_clean[df3_clean >= threshold].dropna().index
 
 # Save the indices of the rows to be deleted to a local file
@@ -105,31 +105,32 @@ df2_clean = df2_clean.drop(index=large_indices).reset_index(drop=True)
 
 
 # Save the cleaned data to CSV files
-df2_clean.to_csv('F:/Geo/Data/Real/Rrs_RC_HICO_Sep.csv', index=False, header=False,float_format='%.5f')
-df3_clean.to_csv('F:/Geo/Data/Real/Chl_RC_HICO_Sep.csv', index=False, header=False,float_format='%.5f')
+#df2_clean.to_csv('F:/Geo/Data/Real/Rrs_RC_HICO_Sep.csv', index=False, header=False,float_format='%.5f')
+#df3_clean.to_csv('F:/Geo/Data/Real/Chl_RC_HICO_Sep.csv', index=False, header=False,float_format='%.5f')
 
 
 
-# output_dir = 'F:/Geo/Data/Real/Distribution_Plots'
-# os.makedirs(output_dir, exist_ok=True)
+output_dir = 'F:/Geo/Data/Real/Distribution_Plots'
+os.makedirs(output_dir, exist_ok=True)
 
 # for col in range(df2_clean.shape[1]):
-#     plt.figure(figsize=(10, 5))
+#     plt.figure(figsize=(10, 8))
 #     plt.hist(df2_clean.iloc[:, col], bins=100, alpha=0.7, color='blue', edgecolor='black')
-#     plt.title(f'Distribution of Rrs410_690 Column {col}')
-#     plt.xlabel('Value')
-#     plt.ylabel('Frequency')
-    
-#     plt.savefig(f'{output_dir}/Rrs410_690_Column_{col}.png')
+#     plt.xticks(fontsize=20, fontname='Times New Roman')
+#     plt.yticks(fontsize=20, fontname='Times New Roman')
+#     plt.xlabel('Value',fontsize=28, fontname='Times New Roman')
+#     plt.ylabel('Frequency',fontsize=28, fontname='Times New Roman')   
+#     plt.savefig(f'{output_dir}/Rrs410_690_Column_{col}.pdf', bbox_inches='tight')
 #     plt.close()
 
 
-# plt.figure(figsize=(10, 5))
-# plt.hist(df3_clean.values.flatten(), bins=50, alpha=0.7, color='green', edgecolor='black')
-# plt.title('Distribution of Chl Values')
-# plt.xlabel('Value')
-# plt.ylabel('Frequency')
-# plt.show()
+plt.figure(figsize=(10, 6))
+plt.hist(df3_clean.values.flatten(), bins=50, alpha=0.7, color='blue', edgecolor='black')
+plt.xticks(fontsize=20, fontname='Times New Roman')
+plt.yticks(fontsize=20, fontname='Times New Roman')
+plt.xlabel('Chl $a$ Value',fontsize=24, fontname='Times New Roman')
+plt.ylabel('Frequency',fontsize=24, fontname='Times New Roman')
+plt.show()
 
 
 # Save the cleaned data to CSV files

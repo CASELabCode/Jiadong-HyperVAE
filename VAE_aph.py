@@ -10,6 +10,7 @@ import os
 import scipy.io
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+import torch.optim as optim
 
 class VAE(nn.Module):
     def __init__(self, input_dim, output_dim):
@@ -72,7 +73,7 @@ def train(model, train_dl, epochs=200):
 
     min_total_loss = float('inf')
 
-    best_model_total_path = 'F:\\Geo\\Model\\vae_trans_model_best_total.pth'
+    best_model_total_path = 'F:\\VAE for aphy-chla\\Model\\vae_trans_model_best_total.pth'
 
     for epoch in range(epochs):
         total_loss = 0.0
@@ -92,7 +93,7 @@ def train(model, train_dl, epochs=200):
             min_total_loss = avg_total_loss
             torch.save(model.state_dict(), best_model_total_path)
 
-    torch.save(model.state_dict(), 'F:\\Geo\\Model\\vae_model.pth')
+    torch.save(model.state_dict(), 'F:\\VAE for aphy-chla\\Model\\vae_model.pth')
 
 
 def evaluate(model, test_dl):
@@ -107,13 +108,13 @@ def evaluate(model, test_dl):
     return np.vstack(predictions), np.vstack(actuals)
 
 
-def minmax_scale(data, min_val, max_val, feature_range=(0, 1)):
+def minmax_scale(data, min_val, max_val, feature_range=(1, 10)):
     scale = (feature_range[1] - feature_range[0]) / (max_val - min_val)
     min_range = feature_range[0]
     data_scaled = (data - min_val) * scale + min_range
     return data_scaled
 
-def inverse_minmax_scale(data_scaled, min_val, max_val, feature_range=(0, 1)):
+def inverse_minmax_scale(data_scaled, min_val, max_val, feature_range=(1, 10)):
     scale = (max_val - min_val) / (feature_range[1] - feature_range[0])
     min_range = feature_range[0]
     data_original = (data_scaled - min_range) * scale + min_val
@@ -132,24 +133,23 @@ def load_real_data(aphy_file_path, rrs_file_path):
     output_dim = a_phy_real.shape[1]
 
     min_val = 0
-    max_val = 4
+    max_val = 2.4
 
     scalers_Rrs_real = [MinMaxScaler(feature_range=(1, 10)) for _ in range(Rrs_real.shape[0])]
 
     Rrs_real_normalized = np.array([scalers_Rrs_real[i].fit_transform(row.reshape(-1, 1)).flatten() for i, row in enumerate(Rrs_real)])
     a_phy_real_normalized = np.array([minmax_scale(row, min_val, max_val, feature_range=(1, 10)) for row in a_phy_real])
-    #a_phy_real_normalized = a_phy_real
 
     Rrs_real_tensor = torch.tensor(Rrs_real_normalized, dtype=torch.float32)
     a_phy_real_tensor = torch.tensor(a_phy_real_normalized, dtype=torch.float32)
     
     dataset_real = TensorDataset(Rrs_real_tensor, a_phy_real_tensor)
 
-    train_size = int(0.5 * len(dataset_real))
+    train_size = int(0.8 * len(dataset_real))
     test_size = len(dataset_real) - train_size
     train_dataset_real, test_dataset_real = random_split(dataset_real, [train_size, test_size])
 
-    train_real_dl = DataLoader(train_dataset_real, batch_size=train_size, shuffle=True, num_workers=12)
+    train_real_dl = DataLoader(train_dataset_real, batch_size=128, shuffle=True, num_workers=12)
     test_real_dl = DataLoader(test_dataset_real, batch_size=test_size, shuffle=False, num_workers=12)
 
     return train_real_dl, test_real_dl, input_dim, output_dim, min_val, max_val
@@ -166,15 +166,14 @@ def load_real_test(aphy_file_path, rrs_file_path):
     output_dim = a_phy_real.shape[1]
 
     min_val = 0
-    max_val = 4
+    max_val = 2.4
 
     scalers_Rrs_real = [MinMaxScaler(feature_range=(1, 10)) for _ in range(Rrs_real.shape[0])]
 
     Rrs_real_normalized = np.array([scalers_Rrs_real[i].fit_transform(row.reshape(-1, 1)).flatten() for i, row in enumerate(Rrs_real)])
     a_phy_real_normalized = np.array([minmax_scale(row, min_val, max_val, feature_range=(1, 10)) for row in a_phy_real])
 
-    Rrs_real_tensor = torch.tensor(Rrs_real_normalized, dtype=torch.float32)
-    
+    Rrs_real_tensor = torch.tensor(Rrs_real_normalized, dtype=torch.float32)  
     a_phy_real_tensor = torch.tensor(a_phy_real_normalized, dtype=torch.float32)
     
     dataset_real = TensorDataset(Rrs_real_tensor, a_phy_real_tensor)
@@ -275,20 +274,20 @@ def calculate_metrics(predictions, actuals, threshold=0.6):
     log_ratios = np.log10(filtered_predictions / (filtered_actuals + 1e-10))
     Y = np.median(np.abs(log_ratios))
     Z = np.median(log_ratios)
-    epsilon = 100 * (10**Y - 1)
-    beta = 100 * np.sign(Z) * (10**np.abs(Z) - 1)
+    epsilon = 50 * (10**Y - 1)
+    beta = 10 * np.sign(Z) * (10**np.abs(Z) - 1)
     
     # Calculate additional metrics
     rmse = np.sqrt(np.mean((filtered_predictions - filtered_actuals) ** 2))
     rmsle = np.sqrt(np.mean((np.log10(filtered_predictions + 1) - np.log10(filtered_actuals + 1)) ** 2))
-    mape = 100 * np.median(np.abs((filtered_predictions - filtered_actuals) / filtered_actuals))
+    mape = 50 * np.median(np.abs((filtered_predictions - filtered_actuals) / filtered_actuals))
     bias = 10 ** (np.mean(np.log10(filtered_predictions + 1e-10) - np.log10(filtered_actuals + 1e-10)))
     mae = 10 **(np.mean(np.abs(np.log10(filtered_predictions + 1e-10) - np.log10(filtered_actuals + 1e-10))))
     
     return epsilon, beta, rmse, rmsle, mape, bias, mae
 
 
-def plot_results(predictions_rescaled, actuals_rescaled, save_dir, threshold=0.95, mode='test'):
+def plot_results(predictions_rescaled, actuals_rescaled, save_dir, threshold=0.4, mode='test'):
 
     num_columns = actuals_rescaled.shape[1]
 
@@ -298,12 +297,15 @@ def plot_results(predictions_rescaled, actuals_rescaled, save_dir, threshold=0.9
         actuals = actuals_rescaled[:, n]
         predictions = predictions_rescaled[:, n]
 
-        mask = np.abs(predictions - actuals) / np.abs(actuals+1e-10) < threshold
+        mask = np.abs(predictions - actuals) / np.abs(actuals+1e-10) < 1.0
         filtered_predictions = predictions[mask]
         filtered_actuals = actuals[mask]
 
-        log_actual = np.log10(np.where(actuals == 0, 1e-10, actuals))
-        log_prediction = np.log10(np.where(predictions == 0, 1e-10, predictions))
+        #log_actual = np.log10(np.where(actuals == 0, 1e-10, actuals))
+        #log_prediction = np.log10(np.where(predictions == 0, 1e-10, predictions))
+
+        log_actual = np.log10(np.where(filtered_actuals == 0, 1e-10, filtered_actuals))
+        log_prediction = np.log10(np.where(filtered_predictions == 0, 1e-10, filtered_predictions))
 
         filtered_log_actual = np.log10(np.where(filtered_actuals == 0, 1e-10, filtered_actuals))
         filtered_log_prediction = np.log10(np.where(filtered_predictions == 0, 1e-10, filtered_predictions))
@@ -318,33 +320,39 @@ def plot_results(predictions_rescaled, actuals_rescaled, save_dir, threshold=0.9
         bias_list.append(bias)
         mae_list.append(mae)
 
-        
-        valid_mask = np.isfinite(filtered_log_actual) & np.isfinite(filtered_log_prediction)
-        slope, intercept = np.polyfit(filtered_log_actual[valid_mask], filtered_log_prediction[valid_mask], 1)
-        slope_list.append(slope)
-        x = np.array([-4, 2])
-        y = slope * x + intercept
-
         plt.figure(figsize=(6, 6))
 
-        plt.plot(x, y, linestyle='--', color='blue', linewidth=0.8)
         lims = [-4, 2]
         plt.plot(lims, lims, linestyle='-',color='black', linewidth=0.8)
 
         sns.scatterplot(x=log_actual, y=log_prediction, alpha=0.5)
 
-        sns.kdeplot(x=filtered_log_actual, y=filtered_log_prediction, levels=3, color="black", fill=False, linewidths=0.8)
+        if mode == 'test':
+            valid_mask = np.isfinite(filtered_log_actual) & np.isfinite(filtered_log_prediction)
+            slope, intercept = np.polyfit(filtered_log_actual[valid_mask], filtered_log_prediction[valid_mask], 1)
+            slope_list.append(slope)
+            x = np.array([-4, 2])
+            y = slope * x + intercept
+            plt.plot(x, y, linestyle='--', color='blue', linewidth=0.8)
+            sns.kdeplot(x=filtered_log_actual, y=filtered_log_prediction, levels=3, color="black", fill=False, linewidths=0.8)   
 
-        plt.xlabel('Actual $a_{ph}$ Values', fontsize=24, fontname='Times New Roman')
-        plt.ylabel('Predicted $a_{ph}$ Values', fontsize=24, fontname='Times New Roman')
+        plt.xlabel('Actual $a_{phy}$ Values', fontsize=24, fontname='Times New Roman')
+        plt.ylabel('Predicted $a_{phy}$ Values', fontsize=24, fontname='Times New Roman')
         plt.xlim(-4, 2)
         plt.ylim(-4, 2)
         plt.grid(True, which="both", ls="--")
 
-        plt.legend(title=(f'MAE = {mae:.2f}, RMSE = {rmse:.2f}, RMSLE = {rmsle:.2f} \n'
-                        f'Bias = {bias:.2f}, Slope = {slope:.2f} \n'
-                        f'MAPE = {mape:.2f}%, ε = {epsilon:.2f}%, β = {beta:.2f}%'),
-                fontsize=16, title_fontsize=12, prop={'family': 'Times New Roman'})
+        if mode == 'test':
+            legend_title = (f'MAE = {mae:.2f}, RMSE = {rmse:.2f}, RMSLE = {rmsle:.2f} \n'
+                            f'Bias = {bias:.2f}, Slope = {slope:.2f} \n'
+                            f'MAPE = {mape:.2f}%, ε = {epsilon:.2f}%, β = {beta:.2f}%')
+        else:
+            legend_title = (f'MAE = {mae:.2f}, RMSE = {rmse:.2f}, RMSLE = {rmsle:.2f} \n'
+                            f'Bias = {bias:.2f} \n'
+                            f'MAPE = {mape:.2f}%, ε = {epsilon:.2f}%, β = {beta:.2f}%')
+
+        plt.legend(title=legend_title,
+                   fontsize=16, title_fontsize=12, prop={'family': 'Times New Roman'})
 
         plt.xticks(fontsize=20, fontname='Times New Roman')
         plt.yticks(fontsize=20, fontname='Times New Roman')
@@ -412,17 +420,18 @@ def calculate_l1_loss(predictions, actuals):
 
 def plot_line_comparison_top10(predictions_rescaled, actuals_rescaled, save_dir, mode='test'):
 
-    top50_indices = np.arange(10)
+    l1_losses = calculate_l1_loss(predictions_rescaled, actuals_rescaled)
+    top10_indices = np.argsort(l1_losses)[:10]
 
     num_columns = actuals_rescaled.shape[1]
     wavelengths = np.linspace(400, 700, num_columns) 
 
-    for i in top50_indices:
+    for i in top10_indices:
         plt.figure(figsize=(12, 6))
-        plt.plot(predictions_rescaled[i], label='Predicted Values', linestyle='-', marker='o')
-        plt.plot(actuals_rescaled[i], label='Actual Values', linestyle='-', marker='x')
+        plt.plot(predictions_rescaled[i], label='Predicted Values', linestyle='-', marker='o', color='blue')
+        plt.plot(actuals_rescaled[i], label='Actual Values', linestyle='-', marker='x', color='#d62828')
         plt.xlabel('Wavelengths',fontsize=28, fontname='Times New Roman')
-        plt.ylabel('$a_{ph}$ Values',fontsize=28, fontname='Times New Roman')
+        plt.ylabel('$a_{phy}$ Values',fontsize=28, fontname='Times New Roman')
         tick_labels = np.arange(400, 701, 100)
         tick_positions = [np.argmin(np.abs(wavelengths - label)) for label in tick_labels]
         plt.xticks(tick_positions, tick_labels, fontsize=20, fontname='Times New Roman')
@@ -432,7 +441,25 @@ def plot_line_comparison_top10(predictions_rescaled, actuals_rescaled, save_dir,
         plt.savefig(os.path.join(save_dir, f'{mode}_line_plot_comparison_top10_{i}.pdf'), bbox_inches='tight')
         plt.close()
 
+def plot_line_comparison_all(predictions_rescaled, actuals_rescaled, save_dir, mode='test'):
 
+    num_columns = actuals_rescaled.shape[1]
+    wavelengths = np.linspace(400, 700, num_columns) 
+
+    for i in range(predictions_rescaled.shape[0]):
+        plt.figure(figsize=(12, 6))
+        plt.plot(predictions_rescaled[i], label='Predicted Values', linestyle='-', marker='o', color='blue')
+        plt.plot(actuals_rescaled[i], label='Actual Values', linestyle='-', marker='x', color='#d62828')
+        plt.xlabel('Wavelengths',fontsize=28, fontname='Times New Roman')
+        plt.ylabel('$a_{phy}$ Values',fontsize=28, fontname='Times New Roman')
+        tick_labels = np.arange(400, 701, 100)
+        tick_positions = [np.argmin(np.abs(wavelengths - label)) for label in tick_labels]
+        plt.xticks(tick_positions, tick_labels, fontsize=20, fontname='Times New Roman')
+        plt.yticks(fontsize=20, fontname='Times New Roman')
+        plt.legend(prop={'size': 24, 'family': 'Times New Roman'})
+        plt.grid(True, which='both', linestyle='--', linewidth=0.6, zorder=0)
+        plt.savefig(os.path.join(save_dir, f'{mode}_line_plot_comparison_{i}.pdf'), bbox_inches='tight')
+        plt.close()
 
 def save_to_csv(data, file_path):
     df = pd.DataFrame(data)
@@ -444,42 +471,49 @@ def inverse_transform_by_row(scalers, data):
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_real_dl, test_real_dl, input_dim, output_dim, min_val, max_val  = load_real_data('F:\\Geo\\Data\\Real\\aphy_RA_HICO.csv','F:\\Geo\\Data\\Real\\Rrs_RA_HICO.csv')
-    test_real_Sep, _, _,_,_  = load_real_test('F:\\Geo\\Data\\Real\\aphy_RA_HICO_Sep.csv','F:\\Geo\\Data\\Real\\Rrs_RA_HICO_Sep.csv')
-    test_real_Oct, _, _,_,_  = load_real_test('F:\\Geo\\Data\\Real\\aphy_RA_HICO_Oct.csv','F:\\Geo\\Data\\Real\\Rrs_RA_HICO_Oct.csv')
+    train_real_dl, test_real_dl, input_dim, output_dim, min_val, max_val  = load_real_data('F:\\VAE for aphy-chla\\Data\\Real\\aphy_RA_PACE.csv','F:\\VAE for aphy-chla\\Data\\Real\\Rrs_RA_PACE.csv')
+    test_real_Sep, _, _,_,_  = load_real_test('F:\\VAE for aphy-chla\\Data\\Real\\aphy_RA_PACE_Sep.csv','F:\\VAE for aphy-chla\\Data\\Real\\Rrs_RA_PACE_Sep.csv')
+    test_real_Oct, _, _,_,_  = load_real_test('F:\\VAE for aphy-chla\\Data\\Real\\aphy_RA_PACE_Oct.csv','F:\\VAE for aphy-chla\\Data\\Real\\Rrs_RA_PACE_Oct.csv')
 
-    save_dir = "F:\\aphy-and-Chla-prediction\\plots\\VAE_aph_HICO"
+    save_dir = "F:\\VAE for aphy-chla\\plots\\VAE_aph_PACE_2"
     os.makedirs(save_dir, exist_ok=True)
 
     model = VAE(input_dim, output_dim).to(device)
-    opt = torch.optim.Adam(model.parameters(), lr=0.0015)
+    opt = torch.optim.Adam(model.parameters(), lr=0.002)
 
-    train(model, train_real_dl, epochs=300)
+    train(model, train_real_dl, epochs=200)
 
-    model.load_state_dict(torch.load('F:\\Geo\\Model\\vae_trans_model_best_total.pth', map_location=device))
+    model.load_state_dict(torch.load('F:\\VAE for aphy-chla\\Model\\vae_trans_model_best_total.pth', map_location=device))
 
     predictions, actuals = evaluate(model, test_real_dl)
     predictions_original = np.array([inverse_minmax_scale(pred, min_val, max_val, feature_range=(1, 10)) for pred in predictions])
     actuals_original = np.array([inverse_minmax_scale(act, min_val, max_val, feature_range=(1, 10)) for act in actuals])
 
     predictions_Sep, actuals_Sep = evaluate(model, test_real_Sep)
-    predictions_original_Sep = np.array([inverse_minmax_scale(pred, min_val, max_val, feature_range=(1, 10)) for pred in predictions])
-    actuals_original_Sep = np.array([inverse_minmax_scale(act, min_val, max_val, feature_range=(1, 10)) for act in actuals])
+    predictions_original_Sep = np.array([inverse_minmax_scale(pred, min_val, max_val, feature_range=(1, 10)) for pred in predictions_Sep])
+    actuals_original_Sep = np.array([inverse_minmax_scale(act, min_val, max_val, feature_range=(1, 10)) for act in actuals_Sep])
 
     predictions_Oct, actuals_Oct = evaluate(model, test_real_Oct)
-    predictions_original_Oct = np.array([inverse_minmax_scale(pred, min_val, max_val, feature_range=(1, 10)) for pred in predictions])
-    actuals_original_Oct = np.array([inverse_minmax_scale(act, min_val, max_val, feature_range=(1, 10)) for act in actuals])
+    predictions_original_Oct = np.array([inverse_minmax_scale(pred, min_val, max_val, feature_range=(1, 10)) for pred in predictions_Oct])
+    actuals_original_Oct = np.array([inverse_minmax_scale(act, min_val, max_val, feature_range=(1, 10)) for act in actuals_Oct])
 
     save_to_csv(predictions_original, os.path.join(save_dir, 'predictions_rescaled.csv'))
     save_to_csv(actuals_original, os.path.join(save_dir, 'actuals_rescaled.csv'))
 
+    save_to_csv(predictions_original_Sep, os.path.join(save_dir, 'predictions_rescaled_Sep.csv'))
+    save_to_csv(actuals_original_Sep, os.path.join(save_dir, 'actuals_rescaled_Sep.csv'))
+
+    save_to_csv(predictions_original_Oct, os.path.join(save_dir, 'predictions_rescaled_Oct.csv'))
+    save_to_csv(actuals_original_Oct, os.path.join(save_dir, 'actuals_rescaled_Oct.csv'))
+
+
     plot_line_comparison_top10(predictions_original, actuals_original, save_dir, mode='test')
     plot_results(predictions_original, actuals_original, save_dir, mode='test')
 
-    plot_line_comparison_top10(predictions_original_Sep, actuals_original_Sep, save_dir, mode='Sep')
+    plot_line_comparison_all(predictions_original_Sep, actuals_original_Sep, save_dir, mode='Sep')
     plot_results(predictions_original_Sep, actuals_original_Sep, save_dir, mode='Sep')
 
-    plot_line_comparison_top10(predictions_original_Oct, actuals_original_Oct, save_dir, mode='Oct')
+    plot_line_comparison_all(predictions_original_Oct, actuals_original_Oct, save_dir, mode='Oct')
     plot_results(predictions_original_Oct, actuals_original_Oct, save_dir, mode='Oct')
 
 
