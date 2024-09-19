@@ -274,13 +274,13 @@ def calculate_metrics(predictions, actuals, threshold=0.6):
     log_ratios = np.log10(filtered_predictions / (filtered_actuals + 1e-10))
     Y = np.median(np.abs(log_ratios))
     Z = np.median(log_ratios)
-    epsilon = 50 * (10**Y - 1)
-    beta = 10 * np.sign(Z) * (10**np.abs(Z) - 1)
+    epsilon = 100 * (10**Y - 1)
+    beta = 100 * np.sign(Z) * (10**np.abs(Z) - 1)
     
     # Calculate additional metrics
     rmse = np.sqrt(np.mean((filtered_predictions - filtered_actuals) ** 2))
     rmsle = np.sqrt(np.mean((np.log10(filtered_predictions + 1) - np.log10(filtered_actuals + 1)) ** 2))
-    mape = 50 * np.median(np.abs((filtered_predictions - filtered_actuals) / filtered_actuals))
+    mape = 100 * np.median(np.abs((filtered_predictions - filtered_actuals) / filtered_actuals))
     bias = 10 ** (np.mean(np.log10(filtered_predictions + 1e-10) - np.log10(filtered_actuals + 1e-10)))
     mae = 10 **(np.mean(np.abs(np.log10(filtered_predictions + 1e-10) - np.log10(filtered_actuals + 1e-10))))
     
