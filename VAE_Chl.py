@@ -120,14 +120,11 @@ def load_real_data(aphy_file_path, rrs_file_path):
     output_dim = Chl_real.shape[1]
 
     scalers_Rrs_real = [MinMaxScaler(feature_range=(1, 10)) for _ in range(Rrs_real.shape[0])]
-    scaler_Chl_real = MinMaxScaler(feature_range=(0, 10))
 
     Rrs_real_normalized = np.array([scalers_Rrs_real[i].fit_transform(row.reshape(-1, 1)).flatten() for i, row in enumerate(Rrs_real)])
-    Chl_real_normalized = scaler_Chl_real.fit_transform(Chl_real)
 
     Rrs_real_tensor = torch.tensor(Rrs_real_normalized, dtype=torch.float32)
-    Chl_real_tensor = torch.tensor(Chl_real_normalized, dtype=torch.float32)
-
+    Chl_real_tensor = torch.tensor(Chl_real, dtype=torch.float32)
 
     dataset_real = TensorDataset(Rrs_real_tensor, Chl_real_tensor)
 
@@ -139,7 +136,7 @@ def load_real_data(aphy_file_path, rrs_file_path):
     train_real_dl = DataLoader(train_dataset_real, batch_size=1024, shuffle=True, num_workers=12)
     test_real_dl = DataLoader(test_dataset_real, batch_size=1024, shuffle=False, num_workers=12)
 
-    return train_real_dl, test_real_dl, scaler_Chl_real, input_dim, output_dim
+    return train_real_dl, test_real_dl, input_dim, output_dim
 
 
 def load_real_test(aphy_file_path, rrs_file_path):
@@ -155,20 +152,21 @@ def load_real_test(aphy_file_path, rrs_file_path):
     output_dim = Chl_real.shape[1]
 
     scalers_Rrs_real = [MinMaxScaler(feature_range=(1, 10)) for _ in range(Rrs_real.shape[0])]
-    scaler_Chl_real = MinMaxScaler(feature_range=(0, 10))
+    #scaler_Chl_real = MinMaxScaler(feature_range=(0, 10))
 
     Rrs_real_normalized = np.array([scalers_Rrs_real[i].fit_transform(row.reshape(-1, 1)).flatten() for i, row in enumerate(Rrs_real)])
-    Chl_real_normalized = scaler_Chl_real.fit_transform(Chl_real)
+    #Chl_real_normalized = scaler_Chl_real.fit_transform(Chl_real)
 
     Rrs_real_tensor = torch.tensor(Rrs_real_normalized, dtype=torch.float32)
-    Chl_real_tensor = torch.tensor(Chl_real_normalized, dtype=torch.float32)
+    Chl_real_tensor = torch.tensor(Chl_real, dtype=torch.float32)
+    #Chl_real_tensor = torch.tensor(Chl_real_normalized, dtype=torch.float32)
 
 
     dataset_real = TensorDataset(Rrs_real_tensor, Chl_real_tensor)
     dataset_size = int(len(dataset_real))
     test_real_dl = DataLoader(dataset_real, batch_size=dataset_size, shuffle=False, num_workers=12)
 
-    return test_real_dl, scaler_Chl_real, input_dim, output_dim
+    return test_real_dl, input_dim, output_dim
 
 def calculate_metrics(predictions, actuals, threshold=0.8):
     """
@@ -188,13 +186,13 @@ def calculate_metrics(predictions, actuals, threshold=0.8):
     log_ratios = np.log10(filtered_predictions / filtered_actuals)
     Y = np.median(np.abs(log_ratios))
     Z = np.median(log_ratios)
-    epsilon = 50 * (10**Y - 1)
-    beta = 50 * np.sign(Z) * (10**np.abs(Z) - 1)
+    epsilon = 100 * (10**Y - 1)
+    beta = 100 * np.sign(Z) * (10**np.abs(Z) - 1)
     
     # Calculate additional metrics
     rmse = np.sqrt(np.mean((filtered_predictions - filtered_actuals) ** 2))
     rmsle = np.sqrt(np.mean((np.log10(filtered_predictions + 1) - np.log10(filtered_actuals + 1)) ** 2))
-    mape = 50 * np.median(np.abs((filtered_predictions - filtered_actuals) / filtered_actuals))
+    mape = 100 * np.median(np.abs((filtered_predictions - filtered_actuals) / filtered_actuals))
     bias = 10 ** (np.mean(np.log10(filtered_predictions) - np.log10(filtered_actuals)))
     mae = 10** np.mean(np.abs(np.log10(filtered_predictions) - np.log10(filtered_actuals)))
     
@@ -263,9 +261,9 @@ def save_to_csv(data, file_path):
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_real_dl, test_real_dl, scaler_Chl_real, input_dim, output_dim  = load_real_data('F:\\Geo\\Data\\Real\\Chl_RC_PACE.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO.csv')
-    test_real_Sep, scaler_Chl_real_Sep, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_HICO_Sep.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO_Sep.csv')
-    test_real_Oct, scaler_Chl_real_Oct, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_HICO_Oct.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO_Oct.csv')
+    train_real_dl, test_real_dl, input_dim, output_dim  = load_real_data('F:\\Geo\\Data\\Real\\Chl_RC_PACE.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO.csv')
+    test_real_Sep, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_HICO_Sep.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO_Sep.csv')
+    test_real_Oct, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_HICO_Oct.csv','F:\\Geo\\Data\\Real\\Rrs_RC_HICO_Oct.csv')
 
     save_dir = "F:\\aphy-chla-predictions\\plots\\VAE_Chla_HICO_2"
     os.makedirs(save_dir, exist_ok=True)
@@ -274,26 +272,21 @@ if __name__ == '__main__':
     model = VAE(input_dim, output_dim).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-3)
 
-    train(model, train_real_dl, epochs=400)
+    train(model, train_real_dl, epochs=300)
 
     model.load_state_dict(torch.load('F:\\aphy-chla-predictions\\Model\\vae_trans_model_best_Chl.pth', map_location=device))
 
     predictions, actuals = evaluate(model, test_real_dl)
-    predictions_rescaled = scaler_Chl_real.inverse_transform(predictions)
-    actuals_rescaled = scaler_Chl_real.inverse_transform(actuals)
 
     predictions_Sep, actuals_Sep = evaluate(model, test_real_Sep)
-    predictions_rescaled_Sep = scaler_Chl_real.inverse_transform(predictions_Sep)
-    actuals_rescaled_Sep = scaler_Chl_real.inverse_transform(actuals_Sep)
 
     predictions_Oct, actuals_Oct = evaluate(model, test_real_Oct)
-    predictions_rescaled_Oct = scaler_Chl_real.inverse_transform(predictions_Oct)
-    actuals_rescaled_Oct = scaler_Chl_real.inverse_transform(actuals_Oct)
 
-    save_to_csv(predictions_rescaled, os.path.join(save_dir, 'predictions_rescaled.csv'))
-    save_to_csv(actuals_rescaled, os.path.join(save_dir, 'actuals_rescaled.csv'))
+    save_to_csv(predictions, os.path.join(save_dir, 'predictions_rescaled.csv'))
+    save_to_csv(actuals, os.path.join(save_dir, 'actuals_rescaled.csv'))
+ 
+    plot_results(predictions, actuals, save_dir, mode='test')
+    plot_results(predictions_Sep, actuals_Sep, save_dir, mode='Sep')
+    plot_results(predictions_Oct, actuals_Oct, save_dir, mode='Oct')
 
-    
-    plot_results(predictions_rescaled, actuals_rescaled, save_dir, mode='test')
-    plot_results(predictions_rescaled_Sep, actuals_rescaled_Sep, save_dir, mode='Sep')
-    plot_results(predictions_rescaled_Oct, actuals_rescaled_Oct, save_dir, mode='Oct')
+
