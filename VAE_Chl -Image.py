@@ -72,7 +72,7 @@ def train(model, train_dl, epochs=200):
 
     min_total_loss = float('inf')
 
-    best_model_total_path = 'F:\\aphy-chla-predictions\\Model\\vae_trans_model_best_Chl.pth'
+    best_model_total_path = 'F:\\aphy-chla-predictions\\Model\\vae_trans_model_best_Chl_EMIT.pth'
 
     for epoch in range(epochs):
         total_loss = 0.0
@@ -92,7 +92,7 @@ def train(model, train_dl, epochs=200):
             min_total_loss = avg_total_loss
             torch.save(model.state_dict(), best_model_total_path)
 
-    torch.save(model.state_dict(), 'F:\\aphy-chla-predictions\\Model\\vae_model.pth')
+    torch.save(model.state_dict(), 'F:\\aphy-chla-predictions\\Model\\vae_model_EMIT.pth')
 
 
 def evaluate(model, test_dl):
@@ -152,15 +152,11 @@ def load_real_test(aphy_file_path, rrs_file_path):
     output_dim = Chl_real.shape[1]
 
     scalers_Rrs_real = [MinMaxScaler(feature_range=(1, 10)) for _ in range(Rrs_real.shape[0])]
-    #scaler_Chl_real = MinMaxScaler(feature_range=(0, 10))
 
     Rrs_real_normalized = np.array([scalers_Rrs_real[i].fit_transform(row.reshape(-1, 1)).flatten() for i, row in enumerate(Rrs_real)])
-    #Chl_real_normalized = scaler_Chl_real.fit_transform(Chl_real)
 
     Rrs_real_tensor = torch.tensor(Rrs_real_normalized, dtype=torch.float32)
     Chl_real_tensor = torch.tensor(Chl_real, dtype=torch.float32)
-    #Chl_real_tensor = torch.tensor(Chl_real_normalized, dtype=torch.float32)
-
 
     dataset_real = TensorDataset(Rrs_real_tensor, Chl_real_tensor)
     dataset_size = int(len(dataset_real))
@@ -255,38 +251,69 @@ def plot_results(predictions_rescaled, actuals_rescaled, save_dir, threshold=0.5
 
 def save_to_csv(data, file_path):
     df = pd.DataFrame(data)
-    df.to_csv(file_path, index=False)
+    df.to_csv(file_path, index=False, header=False)
+
+
+
+def query_model_and_save_predictions(model, rrs_file_path, save_path):
+    """
+    Load Rrs values from a CSV file, query the model for corresponding Chla predictions, 
+    and save the predicted Chla values into a CSV file.
+    """
+    # Load Rrs values from CSV
+    Rrs_array = np.loadtxt(rrs_file_path, delimiter=',', dtype=float)
+    
+    # Normalize the Rrs values (as in the original data loading function)
+    scalers_Rrs = [MinMaxScaler(feature_range=(1, 10)) for _ in range(Rrs_array.shape[0])]
+    Rrs_normalized = np.array([scalers_Rrs[i].fit_transform(row.reshape(-1, 1)).flatten() for i, row in enumerate(Rrs_array)])
+    
+    # Convert to tensor
+    Rrs_tensor = torch.tensor(Rrs_normalized, dtype=torch.float32).to(device)
+    print("load Rrs success\n")
+    
+    # Set the model to evaluation mode
+    model.eval()
+    
+    # List to store predictions
+    predictions = []
+    print("Start Infer\n")
+    
+    # Disable gradient calculation for inference
+    with torch.no_grad():
+        for i in range(Rrs_tensor.size(0)):
+            Rrs_sample = Rrs_tensor[i].unsqueeze(0)  # Add batch dimension
+            predicted_chla, _, _ = model(Rrs_sample)
+            predictions.append(predicted_chla.cpu().numpy().flatten())
+    
+    # Save predictions to CSV
+    predictions_array = np.array(predictions)
+    save_to_csv(predictions_array, save_path)
+    print(f'Saved predictions to {save_path}')
+
 
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    train_real_dl, test_real_dl, input_dim, output_dim  = load_real_data('F:\\Geo\\Data\\Real\\Chl_RC_PACE.csv','F:\\Geo\\Data\\Real\\Rrs_RC_PACE.csv')
-    test_real_Sep, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_PACE_Sep.csv','F:\\Geo\\Data\\Real\\Rrs_RC_PACE_Sep.csv')
-    test_real_Oct, _, _  = load_real_test('F:\\Geo\\Data\\Real\\Chl_RC_PACE_Oct.csv','F:\\Geo\\Data\\Real\\Rrs_RC_PACE_Oct.csv')
+    train_real_dl, test_real_dl, input_dim, output_dim  = load_real_data('F:\\Geo\\Data\\Real\\Chl_RC_EMIT.csv','F:\\Geo\\Data\\Real\\Rrs_RC_EMIT.csv')
 
-    save_dir = "F:\\aphy-chla-predictions\\plots\\VAE_Chla_PACE_2"
-    os.makedirs(save_dir, exist_ok=True)
+    #3save_dir = "F:\\aphy-chla-predictions\\plots\\VAE_Chla_EMIT_2"
+    #os.makedirs(save_dir, exist_ok=True)
 
-    # 创建VAE模型及优化器
     model = VAE(input_dim, output_dim).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-3)
 
-    train(model, train_real_dl, epochs=300)
+    #train(model, train_real_dl, epochs=300)
 
-    model.load_state_dict(torch.load('F:\\aphy-chla-predictions\\Model\\vae_trans_model_best_Chl.pth', map_location=device))
+    model.load_state_dict(torch.load('F:\\aphy-chla-predictions\\Model\\vae_trans_model_best_Chl_EMIT.pth', map_location=device))
 
-    predictions, actuals = evaluate(model, test_real_dl)
+    #predictions, actuals = evaluate(model, test_real_dl)
 
-    predictions_Sep, actuals_Sep = evaluate(model, test_real_Sep)
-
-    predictions_Oct, actuals_Oct = evaluate(model, test_real_Oct)
-
-    save_to_csv(predictions, os.path.join(save_dir, 'predictions_rescaled.csv'))
-    save_to_csv(actuals, os.path.join(save_dir, 'actuals_rescaled.csv'))
+    #save_to_csv(predictions, os.path.join(save_dir, 'predictions_rescaled.csv'))
+    #save_to_csv(actuals, os.path.join(save_dir, 'actuals_rescaled.csv'))
  
-    plot_results(predictions, actuals, save_dir, mode='test')
-    plot_results(predictions_Sep, actuals_Sep, save_dir, mode='Sep')
-    plot_results(predictions_Oct, actuals_Oct, save_dir, mode='Oct')
+    #plot_results(predictions, actuals, save_dir, mode='test')
+
+    query_model_and_save_predictions(model, 'F:\\aphy-chla-predictions\\image\\reflectance_values_EMIT.csv', 'F:\\aphy-chla-predictions\\predicted_chla_EMIT.csv')
 
 
