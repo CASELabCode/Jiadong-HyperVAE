@@ -55,7 +55,7 @@ with open(coords_file, 'w', newline='') as coord_f, open(reflectance_file, 'w', 
             # Check if the pixel's latitude and longitude are within the specified bounds
             if lon_min <= longitude[j] <= lon_max and lat_min <= latitude[i] <= lat_max:
                 # Check if the pixel's reflectance values contain NaN or Rrs near 700nm > 0.03
-                if not np.isnan(filtered_Rrs[i, j, :]).any() and filtered_Rrs[i, j, wl_700_idx] <= 0.028:
+                if not np.isnan(filtered_Rrs[i, j, :]).any() and filtered_Rrs[i, j, wl_700_idx] <= 0.03:
                     # Save latitude and longitude (1D indexing)
                     coord_writer.writerow([f'{latitude[i]:.8f}', f'{longitude[j]:.8f}'])
                     coord_rows += 1
