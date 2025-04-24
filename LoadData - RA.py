@@ -20,7 +20,8 @@ def replace_nonpositive_with_nearest(df):
 
 def read_columns(file, sheet_name, columns, skiprows=1):
     df = pd.read_excel(file, sheet_name=sheet_name, header=None)
-    return df.iloc[2:, columns]
+    return df.iloc[1:, columns]
+
 
 def wavelength_to_rgb(wavelength, brightness=0.8):
     """
@@ -113,9 +114,41 @@ def plot_column_distributions(df):
     plt.tight_layout()
     plt.show()
 
+def plot_spectral_distribution(df, wavelengths, label):
+    """
+    Plot a single spectral distribution boxplot with wavelength-colored boxes.
+    
+    Parameters:
+    df: DataFrame containing spectral data.
+    wavelengths: List of corresponding wavelengths.
+    label: Label for the plot.
+    """
+    colors = [wavelength_to_rgb(wv) for wv in wavelengths]
+    colors = [tuple(c/255 for c in color) for color in colors]
+    
+    plt.figure(figsize=(8, 5))
+    box = plt.boxplot(df.values, patch_artist=True, showfliers=False, widths=0.8)
+    
+    for patch, color in zip(box['boxes'], colors):
+        patch.set_facecolor(color)
+    
+    plt.ylabel('$R_{rs}$ Value', fontsize=18, fontname='Times New Roman')
+    plt.ylim(bottom=0)
+    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.3f}'))
+    
+    tick_labels = np.arange(400, 701, 100)
+    tick_positions = [np.argmin(np.abs(np.array(wavelengths) - label)) for label in tick_labels]
+    
+    plt.xticks(tick_positions, tick_labels, fontsize=16, fontname='Times New Roman')
+    plt.yticks(fontsize=16, fontname='Times New Roman')
+    plt.xlabel('Wavelength (nm)', fontsize=20, fontname='Times New Roman')
+    
+    plt.tight_layout()
+    plt.show()
+
 # Data Path
-file1 = 'F:/VAE for aphy-chla/Data/Real/aphy400_760nm.xlsx'
-file2 = 'F:/VAE for aphy-chla/Data/Real/Rrs.xlsx'
+file1 = 'F:/aphy-chla-predictions/Data/Clean/aph/Global+AGID_aphy_filtered.xlsx'
+file2 = 'F:/aphy-chla-predictions/Data/Clean/aph/Global+AGID_Rrs_filtered.xlsx'
 
 wv_HICO = [
     404.080, 409.808, 415.536, 421.264, 426.992, 432.720, 438.448, 444.176, 449.904, 
@@ -154,7 +187,7 @@ wv_EMIT = [
 wv = [int(val) for val in wv_EMIT]
 
 start1=400
-start2=350
+start2=400
 
 columns = [col - start1 +1  for col in wv] 
 columns2 = [col - start2 +1 for col in wv] 
@@ -164,43 +197,48 @@ print(columns2)
 df1 = read_columns(file1, 'aph', columns)
 df2 = read_columns(file2, 'Rrs', columns2)
 
-# Replace non-positive values in df1 and df2
-df1, changes1 = replace_nonpositive_with_nearest(df1)
-df2, changes2 = replace_nonpositive_with_nearest(df2)
 
-# Identify rows with NaN values in either file
-nan_indices_df1 = pd.isnull(df1).any(axis=1)
-nan_indices_df2 = pd.isnull(df2).any(axis=1)
+invalid_rows_df1 = (df1.isna() | (df1 < 0)).any(axis=1)
+invalid_rows_df2 = (df2.isna() | (df2 < 0)).any(axis=1)
 
-# Align indices
-nan_indices_df1.index = df1.index
-nan_indices_df2.index = df2.index
 
-nan_indices = nan_indices_df1 | nan_indices_df2 
+invalid_rows = invalid_rows_df1 | invalid_rows_df2
 
 # Delete these rows and reset the index
-df1_clean = df1[~nan_indices].reset_index(drop=True)
-df2_clean = df2[~nan_indices].reset_index(drop=True)
+df1_clean = df1[~invalid_rows].reset_index(drop=True)
+df2_clean = df2[~invalid_rows].reset_index(drop=True)
 
 
-
-output_dir = 'F:/VAE for aphy-chla/Data/Real/Distribution_Plots'
-os.makedirs(output_dir, exist_ok=True)
-
-for col in range(df1_clean.shape[1]):
-    plt.figure(figsize=(10, 8))
-    plt.hist(df1_clean.iloc[:, col], bins=np.linspace(0, 2, 100), alpha=0.7, color='blue', edgecolor='black')
-    plt.xticks(np.linspace(0, 2, 6), fontsize=20, fontname='Times New Roman')
-    plt.yticks(fontsize=20, fontname='Times New Roman')
-    plt.xlim(-0.2, 2.2)  # 固定x轴范围为0-5
-    plt.xlabel('Value', fontsize=28, fontname='Times New Roman')
-    plt.ylabel('Frequency', fontsize=28, fontname='Times New Roman')   
-    plt.savefig(f'{output_dir}/Rrs410_690_Column_{col}.pdf', bbox_inches='tight')
-    plt.close()
-
-
-
-df1_clean.to_csv('F:/VAE for aphy-chla/Data/Real/aphy_RA_EMIT.csv', index=False, header=False, float_format='%.5f')
-df2_clean.to_csv('F:/VAE for aphy-chla/Data/Real/Rrs_RA_EMIT.csv', index=False, header=False, float_format='%.5f')
+df1_clean.to_csv('F:/aphy-chla-predictions/Data/Clean/aphy_EMIT.csv', index=False, header=False, float_format='%.5f')
+df2_clean.to_csv('F:/aphy-chla-predictions/Data/Clean/Rrs_EMIT.csv', index=False, header=False, float_format='%.5f')
 
 print("Cleaned data has been saved to CSV files, and deleted rows information has been saved to deleted_rows.txt.")
+
+
+plot_spectral_distribution(df2_clean, wv, "R_{rs}")
+#plot_spectral_distribution(df1_clean, wv, "a_{phy}")
+
+
+
+
+
+
+
+
+    
+# output_dir = 'F:/aphy-chla-predictions/Data/Real/Distribution_Plots'
+# os.makedirs(output_dir, exist_ok=True)
+
+# for col in range(df1_clean.shape[1]):
+#     plt.figure(figsize=(10, 8))
+#     plt.hist(df1_clean.iloc[:, col], bins=np.linspace(0, 2, 40), alpha=0.7, color='blue', edgecolor='black')
+#     plt.xticks(np.linspace(0, 2, 6), fontsize=20, fontname='Times New Roman')
+#     plt.yticks(fontsize=20, fontname='Times New Roman')
+#     plt.xlim(-0.2, 2.2)  # 固定x轴范围为0-5
+#     plt.xlabel('Value', fontsize=28, fontname='Times New Roman')
+#     plt.ylabel('Frequency', fontsize=28, fontname='Times New Roman')   
+#     plt.savefig(f'{output_dir}/Rrs410_690_Column_{col}.pdf', bbox_inches='tight')
+#     plt.close()
+
+
+

@@ -23,8 +23,8 @@ def read_columns(file, sheet_name, columns, skiprows=1):
     return df.iloc[2:, columns]
 
 # Read three xlsx files
-file2 = 'F:/Geo/Data/Real/Rrs.xlsx'
-file3 = 'F:/Geo/Data/Real/Chl a.xlsx'
+file2 = 'F:/aphy-chla-predictions/Data/Clean/chla/Global+AGID_Rrs.xlsx'
+file3 = 'F:/aphy-chla-predictions/Data/Clean/chla/Global+AGID_Chl a.xlsx'
 
 
 wv_HICO = [
@@ -60,9 +60,9 @@ wv_EMIT = [
     678.5539, 686.0103, 693.4677, 700.9251
 ]
 
-wv = [int(val) for val in wv_HICO]
+wv = [int(val) for val in wv_EMIT]
 
-start=350
+start=400
 
 columns = [col - start +1  for col in wv] 
 
@@ -72,8 +72,8 @@ df2 = read_columns(file2, 'Rrs', columns)
 df3 = pd.read_excel(file3, sheet_name='Chl-a',header=None).iloc[2:, 1:]
 
 
-# Replace non-positive values in df1 and df2
-df2, changes2 = replace_nonpositive_with_nearest(df2)
+# # Replace non-positive values in df1 and df2
+# df2, changes2 = replace_nonpositive_with_nearest(df2)
 
 # Identify rows with NaN values in either file
 nan_indices_df2 = pd.isnull(df2).any(axis=1)
@@ -91,7 +91,7 @@ df3_clean = df3[~nan_indices].reset_index(drop=True)
 
 
 # Find the indices of the top 20% largest values in df3_clean
-threshold = df3_clean.quantile(0.98)
+threshold = df3_clean.quantile(0.995)
 large_indices = df3_clean[df3_clean >= threshold].dropna().index
 
 # Save the indices of the rows to be deleted to a local file
@@ -105,8 +105,8 @@ df2_clean = df2_clean.drop(index=large_indices).reset_index(drop=True)
 
 
 # Save the cleaned data to CSV files
-#df2_clean.to_csv('F:/Geo/Data/Real/Rrs_RC_HICO_Sep.csv', index=False, header=False,float_format='%.5f')
-#df3_clean.to_csv('F:/Geo/Data/Real/Chl_RC_HICO_Sep.csv', index=False, header=False,float_format='%.5f')
+df2_clean.to_csv('F:/aphy-chla-predictions/Data/Clean/Rrs_EMIT_chla.csv', index=False, header=False,float_format='%.5f')
+df3_clean.to_csv('F:/aphy-chla-predictions/Data/Clean/Chla_EMIT.csv', index=False, header=False,float_format='%.5f')
 
 
 
@@ -124,7 +124,7 @@ os.makedirs(output_dir, exist_ok=True)
 #     plt.close()
 
 
-plt.figure(figsize=(10, 6))
+plt.figure(figsize=(10, 8))
 plt.hist(df3_clean.values.flatten(), bins=50, alpha=0.7, color='blue', edgecolor='black')
 plt.xticks(fontsize=20, fontname='Times New Roman')
 plt.yticks(fontsize=20, fontname='Times New Roman')
