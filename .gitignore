@@ -1,0 +1,12 @@
+# Ignore the Data folder
+#Data/
+
+# Ignore the Data folder
+plots/
+other/
+
+# Ignore all .vsdx files
+*.vsdx
+
+# Ignore all .pptx files
+*.pptx
