@@ -82,7 +82,7 @@ class VAE(nn.Module):
 
 
 def loss_function(pred_mu, pred_logvar, target, mu_z, log_var_z, beta=1.0):
-    epsilon = 1e-8  # 防止 log(0)
+    epsilon = 1e-8  
     
     # Gaussian Negative Log Likelihood
     nll = 0.5 * torch.mean(torch.log(2 * torch.tensor(torch.pi)) + pred_logvar + ((target - pred_mu) ** 2) / (torch.exp(pred_logvar) + epsilon))
